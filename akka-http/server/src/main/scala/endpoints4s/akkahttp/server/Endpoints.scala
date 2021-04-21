@@ -80,7 +80,9 @@ trait EndpointsWithCustomErrors
   private[server] val endpointsExceptionHandler =
     ExceptionHandler { case NonFatal(t) => handleServerError(t) }
 
-  case class Endpoint[A, B](request: Request[A], response: Response[B]) {
+  trait Endpoint[A, B] {
+    val request: Request[A]
+    val response: Response[B]
 
     /** @return An Akka HTTP `Route` for this endpoint
       * @param implementation Function that transforms the `A` value carried in
@@ -114,6 +116,13 @@ trait EndpointsWithCustomErrors
       *         given `a` value.
       */
     def uri(a: A): Uri = request.uri(a)
+  }
+
+  object Endpoint {
+    def apply[A, B](req: Request[A], resp: Response[B]): Endpoint[A, B] = new Endpoint[A, B] {
+      override val request: Request[A] = req
+      override val response: B => Route = resp
+    }
   }
 
   /* ************************
