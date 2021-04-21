@@ -6,7 +6,7 @@ import endpoints4s.{Tupler, algebra}
   * This shows an example of how the LazyEndpoints can be created and interop with the non-lazy variants, so it becomes
   * opt-in. Using overloading it has the same API, but a more precise type.
   */
-trait ExampleWithLazy extends LazyEndpoints with algebra.JsonSchemas with JsonEntitiesFromSchemas {
+trait ExampleLazyEndpoints extends LazyEndpoints with algebra.JsonSchemas with JsonEntitiesFromSchemas {
 
   // Dummy domain and JsonSchema
   case class Location(id: Int)

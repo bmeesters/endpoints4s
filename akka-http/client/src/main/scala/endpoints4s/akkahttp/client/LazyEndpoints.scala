@@ -1,12 +1,31 @@
 package endpoints4s.akkahttp.client
 
-import akka.http.scaladsl.model.{HttpEntity, HttpHeader, HttpRequest, HttpResponse, Uri}
+import akka.actor.ActorSystem
+import akka.http.scaladsl.model._
 import akka.stream.Materializer
-import endpoints4s.{Tupler, algebra}
 import endpoints4s.algebra.Documentation
+import endpoints4s.{Tupler, algebra}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
+
+object ExampleClient  {
+  implicit val as: ActorSystem = ActorSystem()
+  implicit val mat: Materializer = Materializer.matFromSystem
+  implicit val ec: ExecutionContext = as.dispatcher
+
+  val client = new LazyEndpoints(EndpointsSettings(AkkaHttpRequestExecutor.cachedHostConnectionPool("", 1234)))
+  with algebra.ExampleLazyEndpoints
+  with endpoints4s.ujson.JsonSchemas
+  with JsonEntitiesFromSchemas
+  import client._
+
+  val requestPayload: LazyRequest[Unit, Location, Unit, Location, Location] =
+    composedEndpoint.request
+
+  // Still as before, you can just use apply
+  val result: Future[Either[String, String]] = composedEndpoint(Location(1))
+}
 
 abstract class LazyEndpoints(
   settings: EndpointsSettings
@@ -21,7 +40,8 @@ abstract class LazyEndpoints(
   )(implicit
     tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
     tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, In],
-  ): LazyEndpoint[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, In, Out] =
+  ): LazyEndpoint[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, In, Out] = {
+    // Copy-pasted logic from the non-lazy client
     new EndpointPayload[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, In, Out] with Endpoint[In, Out] { self =>
       override def apply(a: In): Future[Out] =
         request(a).flatMap { httpResponse =>
@@ -42,6 +62,7 @@ abstract class LazyEndpoints(
       override def response: (StatusCode, Seq[HttpHeader]) => Option[HttpEntity => Future[Either[Throwable, Out]]] = resp
       override def docs: EndpointDocs = doc
     }
+  }
 
   override def request[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, Out](
     m: HttpRequest => HttpRequest,
@@ -60,6 +81,7 @@ abstract class LazyEndpoints(
       override def docs: Documentation = d
       override def headers: (HeadersP, List[HttpHeader]) => List[HttpHeader] = h
 
+      // idem copy-pasted
       override def apply(abc: Out): Future[HttpResponse] = {
         val (ab, c) = tuplerUBH.unapply(abc)
         val (a, b) = tuplerUB.unapply(ab)

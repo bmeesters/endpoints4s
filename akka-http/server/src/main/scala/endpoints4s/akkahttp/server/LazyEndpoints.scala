@@ -2,9 +2,26 @@ package endpoints4s.akkahttp.server
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.{Directive1, Directives, Route}
-import endpoints4s.{Tupler, Valid, Validated}
+import endpoints4s.{Tupler, Valid, Validated, algebra}
 import endpoints4s.algebra.Documentation
 
+object ExampleServer
+    extends LazyEndpoints
+    with algebra.ExampleLazyEndpoints
+    with endpoints4s.ujson.JsonSchemas
+    with JsonEntitiesFromSchemas {
+
+  // you can use it as before
+  val route: Route = composedEndpoint.implementedBy { location =>
+    Right(location.id.toString)
+  }
+
+  // you can still access the payload
+  val myRequest: LazyRequest[Unit, Location, Unit, Location, Location] = composedEndpoint.request
+}
+
+// Interpreter for akka-http-server, uses the same (copied) implementation for the directive and uri + some
+// 'boilerplate' to make the payload accessible.
 trait LazyEndpoints extends Endpoints with endpoints4s.algebra.LazyEndpoints {
 
   override def request[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, Out](
@@ -32,13 +49,14 @@ trait LazyEndpoints extends Endpoints with endpoints4s.algebra.LazyEndpoints {
           directive1InvFunctor.xmapPartial[Validated[HeadersP], HeadersP](
             Directives.extractRequest.map(headers.decode),
             identity,
-            c => Valid(c)
+            c => Valid(c),
           )
         val matchDirective = methodDirective & url.directive & headersDirective
         matchDirective.tflatMap { case (_, a, c) =>
           entity.map(b => tuplerUBH(tuplerUB(a, b), c))
         }
       }
+
       // idem
       override def uri(out: Out): Uri = {
         val (ab, _) = tuplerUBH.unapply(out)
@@ -46,7 +64,7 @@ trait LazyEndpoints extends Endpoints with endpoints4s.algebra.LazyEndpoints {
         url.uri(a)
       }
     }
-  
+
   override def endpoint[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, In, Out](
     r: LazyRequest[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, In],
     resp: Response[Out],
